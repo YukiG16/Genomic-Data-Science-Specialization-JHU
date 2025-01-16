@@ -1,0 +1,91 @@
+---
+title: "Module 1 Quiz"
+output: html_document
+---
+
+# Genomic Data Science Specialization
+
+Johns Hopkins University
+
+Course 6 : Statistics for Genomic Data Science
+
+Module 1
+
+Quiz
+
+```{r }
+# Load libraries
+library(Biobase)
+library(GenomicRanges)
+library(plotrix)
+library(SummarizedExperiment)
+
+# Question 3: Create a SummarizedExperiment object
+data(sample.ExpressionSet, package = "Biobase")
+se = makeSummarizedExperimentFromExpressionSet(sample.ExpressionSet)
+
+# Question 2: Set up caching (use eval=TRUE in R Markdown context)
+knitr::opts_chunk$set(cache = TRUE)
+
+# Question 3: Generate a random plot
+x = rnorm(10)
+plot(x, pch = 19, col = "dodgerblue")
+
+y = rbinom(20, size = 1, prob = 0.5)
+table(y)
+
+# Question 5: Load Bottomly and Bodymap data sets
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bottomly_eset.RData")
+load(file = con)
+close(con)
+bot = bottomly.eset
+pdata_bot = pData(bot)
+
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bodymap_eset.RData")
+load(file = con)
+close(con)
+bm = bodymap.eset
+pdata_bm = pData(bm)
+
+# Question 6: Pie chart for technical replicates by tissue
+pie3D(pdata_bm$num.tech.reps, labels = pdata_bm$tissue.type)
+
+# Question 7: Heatmap of 500 most highly expressed genes
+# Load the dataset and define edata
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bodymap_eset.RData")
+load(file = con)
+close(con)
+bm = bodymap.eset
+edata = exprs(bm)
+# Perform operations on edata
+row_sums = rowSums(edata)
+index = which(rank(-row_sums) < 500)
+heatmap(edata[index, ], Rowv = NA, Colv = NA)
+
+# Question 8: Load Bodymap data
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bodymap_eset.RData")
+load(file = con)
+close(con)
+bm = bodymap.eset
+pdata = pData(bm)
+edata = exprs(bm)
+
+# Question 9: Load Montgomery and Pickrell data set (part 1)
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/montpick_eset.RData")
+load(file = con)
+close(con)
+mp = montpick.eset
+pdata = pData(mp)
+edata = as.data.frame(exprs(mp))
+fdata = fData(mp)
+
+# Question 10: Load Montgomery and Pickrell data set (part 2)
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/montpick_eset.RData")
+load(file = con)
+close(con)
+mp = montpick.eset
+pdata = pData(mp)
+edata = as.data.frame(exprs(mp))
+fdata = fData(mp)
+
+```
