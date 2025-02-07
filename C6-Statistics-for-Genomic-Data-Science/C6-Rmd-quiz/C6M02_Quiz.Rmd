@@ -1,0 +1,310 @@
+---
+title: "C6M02_Quiz"
+author: "Yuki Nakayama"
+output: html_document
+---
+
+# Genomic Data Science Specialization
+
+Johns Hopkins University
+
+Course 6 : Statistics for Genomic Data Science
+
+Module 2
+
+Quiz
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load}
+# Load libraries
+library(Biobase)
+library(GenomicRanges)
+library(plotrix)
+library(SummarizedExperiment)
+```
+
+Question1
+
+What percentage of variation is explained by the 1st principal component in the data set if you:
+
+1.Do no transformations?
+
+2.log2(data + 1) transform?
+
+3.log2(data + 1) transform and subtract row means?
+
+```{r Q1}
+# Load Montgomery & Pickrell dataset
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/montpick_eset.RData")
+load(file = con)
+close(con)
+
+# Extract data components
+mp = montpick.eset
+pdata = pData(mp)
+edata = as.data.frame(exprs(mp))  # Convert expression data to dataframe
+fdata = fData(mp)
+
+# 1. No Transformations
+# Perform PCA on raw data
+pca_raw = prcomp(t(edata), center = TRUE, scale. = FALSE)
+var_explained_raw = (pca_raw$sdev^2) / sum(pca_raw$sdev^2)
+pc1_var_explained_raw = var_explained_raw[1] * 100  # Percentage of variance explained by PC1
+print(paste("PC1 explains", round(pc1_var_explained_raw, 2), "% variance (No Transform)"))
+
+# 2. log2(Data + 1) Transform
+log2_data = log2(edata + 1)
+pca_log2 = prcomp(t(log2_data), center = TRUE, scale. = FALSE)
+var_explained_log2 = (pca_log2$sdev^2) / sum(pca_log2$sdev^2)
+pc1_var_explained_log2 = var_explained_log2[1] * 100
+print(paste("PC1 explains", round(pc1_var_explained_log2, 2), "% variance (log2 Transform)"))
+
+# 3. log2(Data + 1) Transform & Subtract Row Means
+# Subtract row means
+log2_row_centered = log2_data - rowMeans(log2_data)
+pca_centered = prcomp(t(log2_row_centered), center = TRUE, scale. = FALSE)
+var_explained_centered = (pca_centered$sdev^2) / sum(pca_centered$sdev^2)
+pc1_var_explained_centered = var_explained_centered[1] * 100
+print(paste("PC1 explains", round(pc1_var_explained_centered, 2), "% variance (log2 Transform + Row Mean Subtraction)"))
+
+
+```
+
+Question 2 Load the Montgomery and Pickrell eSet:
+
+Perform the log2(data + 1) transform and subtract row means from the samples. Set the seed to 
+333
+333 and use k-means to cluster the samples into two clusters. Use 
+svd
+svd to calculate the singular vectors. What is the correlation between the first singular vector and the sample clustering indicator?
+
+```{r Q2}
+set.seed(333)  # Set seed for reproducibility
+
+# Perform k-means clustering (k = 2)
+kmeans_res = kmeans(t(log2_row_centered), centers = 2)
+clusters = kmeans_res$cluster  # Extract cluster assignments
+
+# Perform Singular Value Decomposition (SVD)
+svd_res = svd(log2_row_centered)
+first_singular_vector = svd_res$v[,1]  # First right singular vector
+
+# Compute correlation between first singular vector & cluster assignments
+correlation = cor(first_singular_vector, as.numeric(clusters))
+print(paste("Correlation between first singular vector and clustering:", round(correlation, 2)))
+```
+
+Question 3 Load the Bodymap data with the following command
+
+Fit a linear model relating the first gene’s counts to the number of technical replicates, treating the number of replicates as a factor. Plot the data for this gene versus the covariate. Can you think of why this model might not fit well?
+
+There are very few samples with more than 2 replicates so the estimates for those values will not be very good. 
+
+```{r Q3}
+# Load the Bodymap dataset
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bodymap_eset.RData")
+load(file = con)
+close(con)
+
+# Extract expression data and sample metadata
+bm = bodymap.eset
+edata = exprs(bm)  # Gene expression matrix
+pdata_bm = pData(bm)  # Sample metadata
+
+# Extract the first gene's counts
+gene1_counts = edata[1, ]  # First gene across all samples
+
+# Convert number of technical replicates into a factor
+replicates = as.factor(pdata_bm$num.tech.reps)
+
+# Create a dataframe for modeling
+df = data.frame(gene1_counts = gene1_counts, replicates = replicates)
+
+# Fit linear model treating replicates as a factor
+lm_model = lm(gene1_counts ~ replicates, data = df)
+
+# Display model summary
+summary(lm_model)
+
+library(ggplot2)
+
+# Create scatter plot with boxplot overlay
+ggplot(df, aes(x = replicates, y = gene1_counts)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.3) +  # Boxplot for distribution
+  geom_jitter(width = 0.2, color = "blue", alpha = 0.6) +  # Jitter plot for individual points
+  labs(title = "First Gene Counts vs. Technical Replicates",
+       x = "Number of Technical Replicates",
+       y = "Gene 1 Expression Count") +
+  theme_minimal()
+```
+
+Question 4 Load the Bodymap data with the following command
+
+Fit a linear model relating he first gene’s counts to the age of the person and the sex of the samples. What is the value and interpretation of the coefficient for age?
+
+-23.91. This coefficient means that for each additional year of age, the count goes down by an average of 23.91 for a fixed sex.
+
+```{r Q4}
+# Load required libraries
+library(ggplot2)
+
+# Load Bodymap dataset
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/bodymap_eset.RData")
+load(file = con)
+close(con)
+
+# Extract expression and metadata
+bm = bodymap.eset
+edata = exprs(bm)
+pdata_bm = pData(bm)
+
+# Debug: Check available metadata
+print(colnames(pdata_bm))  # Identify the correct column names
+
+# Extract first gene counts
+if(nrow(edata) > 0) {
+  gene1_counts = edata[1, ]
+} else {
+  stop("Error: edata has no genes.")
+}
+
+# Extract technical replicates
+if("num.tech.reps" %in% colnames(pdata_bm)) {
+  replicates = as.factor(pdata_bm$num.tech.reps)
+} else {
+  stop("Error: 'num.tech.reps' column is missing in pdata_bm.")
+}
+
+# Extract age
+if("age" %in% colnames(pdata_bm)) {
+  age = pdata_bm$age
+} else {
+  stop("Error: 'age' column is missing in pdata_bm.")
+}
+
+# Extract sex (check for alternative column names)
+possible_sex_columns = c("sex", "Sex", "gender", "sample_sex")
+sex_column = intersect(possible_sex_columns, colnames(pdata_bm))
+
+if(length(sex_column) > 0) {
+  sex = as.factor(pdata_bm[[sex_column[1]]])  # Use the first matching column
+} else {
+  stop("Error: No valid 'sex' column found in pdata_bm.")
+}
+
+# Ensure all variables have the same length
+if(length(gene1_counts) == length(replicates) && length(replicates) == length(age) && length(age) == length(sex)) {
+  df = data.frame(gene1_counts, replicates, age, sex)
+} else {
+  stop("Error: Mismatch in variable lengths.")
+}
+
+# 1️⃣ Scatter Plot: Gene Expression vs. Technical Replicates
+ggplot(df, aes(x = replicates, y = gene1_counts)) +
+  geom_jitter(width = 0.2, alpha = 0.6, color = "blue") +
+  labs(title = "Gene Expression vs. Technical Replicates",
+       x = "Number of Technical Replicates",
+       y = "Gene Expression") +
+  theme_minimal()
+
+# 2️⃣ Scatter Plot: Gene Expression vs. Age
+ggplot(df, aes(x = age, y = gene1_counts)) +
+  geom_point(color = "red", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Gene Expression vs. Age",
+       x = "Age",
+       y = "Gene Expression") +
+  theme_minimal()
+
+# 3️⃣ Boxplot: Gene Expression by Sex
+ggplot(df, aes(x = sex, y = gene1_counts, fill = sex)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Gene Expression by Sex",
+       x = "Sex",
+       y = "Gene Expression") +
+  theme_minimal()
+
+# 4️⃣ Fit Linear Models
+lm_age_sex = lm(gene1_counts ~ age + sex, data = df)
+summary(lm_age_sex)
+
+# 5️⃣ Regression Line: Age vs. Gene Expression
+ggplot(df, aes(x = age, y = gene1_counts)) +
+  geom_point(color = "purple", alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  labs(title = "Regression: Age vs. Gene Expression",
+       x = "Age",
+       y = "Gene Expression") +
+  theme_minimal()
+```
+
+Question 5 Load the Montgomery and Pickrell eSet:
+Perform the log2(data + 1) transform. Then fit a regression model to each sample using population as the outcome. Do this using the 
+lm.fit
+lm.fit function (hint: don't forget the intercept). What is the dimension of the residual matrix, the effects matrix and the coefficients matrix?
+
+
+Residual matrix:  129 x 52580 
+
+Effects matrix: 129 x 52580
+
+Coefficients matrix: 2 x 52580 
+
+```{r Q5}
+# Load required libraries
+library(stats)
+
+# Load Montgomery & Pickrell dataset
+con = url("http://bowtie-bio.sourceforge.net/recount/ExpressionSets/montpick_eset.RData")
+load(file = con)
+close(con)
+
+# Extract expression data and metadata
+mp = montpick.eset
+pdata = pData(mp)   # Sample metadata
+edata = as.data.frame(exprs(mp))  # Expression data (genes x samples)
+fdata = fData(mp)   # Feature (gene) metadata
+
+# Check dataset dimensions
+cat("Expression Data Dimensions: ", dim(edata), "\n")  # Expected (genes x samples)
+cat("Metadata Dimensions: ", dim(pdata), "\n")  # Expected (samples x metadata variables)
+
+# Ensure "population" is present in metadata
+if(!"population" %in% colnames(pdata)) {
+  stop("Error: 'population' column is missing in pdata.")
+}
+
+# Convert population to a numeric factor (0,1)
+pdata$population = as.numeric(factor(pdata$population))
+
+# Perform log2(data + 1) transformation
+log_edata = log2(edata + 1)
+
+# Prepare design matrix for linear model (Intercept + Population)
+X = model.matrix(~ pdata$population)  # Creates a (samples x 2) matrix
+cat("Design Matrix Dimensions: ", dim(X), "\n")  # Expected (samples x 2)
+
+# Fit the linear model using lm.fit for each gene
+fit = lm.fit(X, t(as.matrix(log_edata)))
+
+# Extract results
+coefficients_matrix = fit$coefficients  # (2 x genes)
+residual_matrix = fit$residuals  # (samples x genes)
+effects_matrix = fit$effects  # (samples x genes)
+
+# Print matrix dimensions
+cat("Residual Matrix Dimensions: ", dim(residual_matrix), "\n")  # 129 x 52580
+cat("Effects Matrix Dimensions: ", dim(effects_matrix), "\n")  # 129 x 52580
+cat("Coefficients Matrix Dimensions: ", dim(coefficients_matrix), "\n")  # 2 x 52580
+```
+
+Question 6 Load the Montgomery and Pickrell eSet:
+Perform the log2(data + 1) transform. Then fit a regression model to each sample using population as the outcome. Do this using the lm.fit function (hint: don't forget the intercept). What is the effects matrix?
+```{r Q6}
+# Effects Matrix Interpretation
+cat("\nInterpretation of the Effects Matrix:\n")
+cat("The estimated fitted values for all samples for each gene, stored in the columns of the matrix.\n")
+```
