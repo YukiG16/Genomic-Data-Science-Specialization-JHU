@@ -1,0 +1,160 @@
+---
+title: "C6M03_Quiz"
+author: "Yuki Nakayama"
+output: html_document
+---
+
+# Genomic Data Science Specialization
+
+Johns Hopkins University
+
+Course 6 : Statistics for Genomic Data Science
+
+Module 3
+
+Quiz
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load}
+library(snpStats)
+library(broom)
+```
+
+Question 1 Load the example SNP data with the following code:
+
+Fit a linear model and a logistic regression model to the data for the 3rd SNP. What are the coefficients for the SNP variable? How are they interpreted? (Hint: Don't forget to recode the 0 values to NA for the SNP data)
+
+
+Linear Model = -0.04
+
+Logistic Model = -0.16
+
+Both models are fit on the additive scale. So in the linear model case, the coefficient is the decrease in probability associated with each additional copy of the minor allele. In the logistic regression case, it is the decrease in the log odds ratio associated with each additional copy of the minor allele. 
+
+
+```{r Q1}
+# Load dataset
+data(for.exercise)
+
+# Subset SNPs (every 10th column)
+use <- seq(1, ncol(snps.10), 10)
+sub.10 <- snps.10[, use]
+
+# Convert SNP data to numeric (fixing the raw type issue)
+snpdata <- as.numeric(sub.10@.Data)
+
+# Reshape back to matrix form
+snpdata <- matrix(snpdata, nrow = nrow(sub.10), ncol = ncol(sub.10))
+
+# Extract case/control status
+status <- subject.support$cc
+
+# Replace 0s with NA
+snpdata[snpdata == 0] <- NA  # ✅ Fixes the raw type issue!
+
+# --- Question 1: Fit Linear and Logistic Regression Models ---
+# Select the 3rd SNP (Remove missing values to avoid misalignment)
+valid_indices <- !is.na(snpdata[, 3]) & !is.na(status)
+third_snp <- snpdata[valid_indices, 3]
+filtered_status <- status[valid_indices]
+
+# Linear Model
+lm_model <- lm(filtered_status ~ third_snp)
+lm_coef <- coef(lm_model)[2]
+
+# Logistic Regression Model
+glm_model <- glm(filtered_status ~ third_snp, family = binomial)
+glm_coef <- coef(glm_model)[2]
+
+# Print results
+print(paste("Linear Model Coefficient:", round(lm_coef, 2)))
+print(paste("Logistic Model Coefficient:", round(glm_coef, 2)))
+```
+
+Question 3 Load the example SNP data with the following code:
+
+Fit a logistic regression model on a recessive (need 2 copies of minor allele to confer risk) and additive scale for the 10th SNP. Make a table of the fitted values versus the case/control status. Does one model fit better than the other?
+
+No, in all cases, the fitted values are near 0.5 and there are about an equal number of cases and controls in each group. This is true regardless of whether you fit a recessive or additive model. 
+
+```{r Q3}
+# --- Question 3: Logistic Regression (Recessive & Additive Models) ---
+# 10th SNP data (Remove missing values to avoid misalignment)
+valid_indices_10 <- !is.na(snpdata[, 10]) & !is.na(status)
+tenth_snp <- snpdata[valid_indices_10, 10]
+filtered_status_10 <- status[valid_indices_10]
+
+# Define recessive model (only 2 copies of minor allele as risk factor)
+recessive_snp <- ifelse(tenth_snp == 2, 1, 0)
+
+# Logistic Regression for Additive Model
+additive_model <- glm(filtered_status_10 ~ tenth_snp, family = binomial)
+
+# Logistic Regression for Recessive Model
+recessive_model <- glm(filtered_status_10 ~ recessive_snp, family = binomial)
+
+# Get fitted values
+fitted_additive <- round(fitted(additive_model), 2)
+fitted_recessive <- round(fitted(recessive_model), 2)
+
+# Print tables (Fixing length issue)
+print(table(fitted_additive, filtered_status_10))
+print(table(fitted_recessive, filtered_status_10))
+```
+
+Question 4 Load the example SNP data with the following code:
+
+Fit an additive logistic regression model to each SNP. What is the average effect size? What is the max? What is the minimum?
+
+Average effect size =  0.007, minimum = -4.25, maximum = 3.90
+
+```{r Q4}
+# --- Question 4: Fit Logistic Regression for Each SNP ---
+# Apply logistic regression across all SNPs
+effect_sizes <- apply(snpdata, 2, function(snp) {
+  valid_idx <- !is.na(snp) & !is.na(status)
+  if (sum(valid_idx) > 1) {  # Ensure at least 2 valid observations
+    model <- glm(status[valid_idx] ~ snp[valid_idx], family = binomial)
+    return(coef(model)[2])  # Extract SNP coefficient
+  } else {
+    return(NA)
+  }
+})
+
+# Compute average, min, max effect sizes
+avg_effect <- mean(effect_sizes, na.rm = TRUE)
+min_effect <- min(effect_sizes, na.rm = TRUE)
+max_effect <- max(effect_sizes, na.rm = TRUE)
+
+# Print results
+print(paste("Average Effect Size:", round(avg_effect, 3)))
+print(paste("Min Effect Size:", round(min_effect, 3)))
+print(paste("Max Effect Size:", round(max_effect, 3)))
+```
+
+Question 5 Load the example SNP data with the following code:
+
+Fit an additive logistic regression model to each SNP and square the coefficients. What is the correlation with the results from using snp.rhs.tests and chi.squared? Why does this make sense?
+
+"> 0.99. They are both testing for the same association using the same additive regression model on the logistic scale but using slightly different tests. "
+
+```{r Q5}
+# --- Question 5: Compare to Chi-Squared Test ---
+# Compute squared coefficients
+effect_sizes_squared <- effect_sizes^2
+
+# Use `snp.rhs.tests` to get chi-squared values
+chi_squared_results <- snp.rhs.tests(status ~ 1, snp.data = sub.10)
+
+# Extract chi-squared values
+chi_squared_vals <- chi_squared_results@chisq
+
+# Compute correlation
+correlation <- cor(effect_sizes_squared, chi_squared_vals, use = "complete.obs")
+
+# Print correlation
+print(paste("Correlation between squared effect sizes and chi-squared results:", round(correlation, 2)))
+```
